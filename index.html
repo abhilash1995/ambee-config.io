@@ -1,1 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ambee Device Configuration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        textarea {
+            width: 100%;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 10px;
+            padding: 10px;
+            display: none;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ambee Device Configuration</h1>
+    <div id="deviceInfo" class="container">
+        <h2>Device Information</h2>
+        <p>MAC Address: <span id="macAddress">Loading...</span></p>
+    </div>
 
+    <div class="container">
+        <h2>MQTT Configuration</h2>
+        <textarea id="configForm" rows="10" placeholder="Loading configuration..."></textarea>
+        <button onclick="saveConfig()">Save Configuration</button>
+    </div>
+
+    <div class="container">
+        <h2>Sensor Calibration</h2>
+        <textarea id="calibrationForm" rows="15" placeholder="Loading calibration data..."></textarea>
+        <button onclick="saveCalibration()">Save Calibration</button>
+    </div>
+
+    <div id="status"></div>
+
+    <script>
+        let deviceIP = '192.168.4.1';
+
+        function showStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = isError ? 'error' : 'success';
+            status.style.display = 'block';
+            setTimeout(() => status.style.display = 'none', 3000);
+        }
+
+        async function fetchWithTimeout(url, options = {}, timeout = 5000) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+            
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(timeoutId);
+                return response;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                throw error;
+            }
+        }
+
+        async function loadDeviceInfo() {
+            try {
+                const response = await fetchWithTimeout(`http://${deviceIP}/api/device`);
+                const data = await response.json();
+                document.getElementById('macAddress').textContent = data.mac;
+            } catch (error) {
+                showStatus('Failed to load device info. Make sure you are connected to the device WiFi.', true);
+            }
+        }
+
+        async function loadConfig() {
+            try {
+                const response = await fetchWithTimeout(`http://${deviceIP}/api/config`);
+                const config = await response.json();
+                document.getElementById('configForm').value = JSON.stringify(config, null, 2);
+            } catch (error) {
+                showStatus('Failed to load configuration', true);
+            }
+        }
+
+        async function loadCalibration() {
+            try {
+                const response = await fetchWithTimeout(`http://${deviceIP}/api/calibration`);
+                const calibration = await response.json();
+                document.getElementById('calibrationForm').value = JSON.stringify(calibration, null, 2);
+            } catch (error) {
+                showStatus('Failed to load calibration data', true);
+            }
+        }
+
+        async function saveConfig() {
+            try {
+                const config = document.getElementById('configForm').value;
+                const response = await fetchWithTimeout(`http://${deviceIP}/api/config`, {
+                    method: 'POST',
+                    body: config,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    showStatus('Configuration saved successfully! Device will restart.');
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Failed to save configuration');
+                }
+            } catch (error) {
+                showStatus(error.message, true);
+            }
+        }
+
+        async function saveCalibration() {
+            try {
+                const calibration = document.getElementById('calibrationForm').value;
+                const response = await fetchWithTimeout(`http://${deviceIP}/api/calibration`, {
+                    method: 'POST',
+                    body: calibration,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    showStatus('Calibration saved successfully!');
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Failed to save calibration');
+                }
+            } catch (error) {
+                showStatus(error.message, true);
+            }
+        }
+
+        // Load data when page loads
+        loadDeviceInfo();
+        loadConfig();
+        loadCalibration();
+    </script>
+</body>
+</html>
