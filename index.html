@@ -1,175 +1,86 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Ambee Device Configuration</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .container {
-            margin-bottom: 20px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-        textarea {
-            width: 100%;
-            margin: 10px 0;
-            font-family: monospace;
-        }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        #status {
-            margin-top: 10px;
-            padding: 10px;
-            display: none;
-        }
-        .success {
-            background-color: #dff0d8;
-            color: #3c763d;
-        }
-        .error {
-            background-color: #f2dede;
-            color: #a94442;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>ESP32 OTA Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      max-width: 600px;
+      margin: auto;
+      background-color: #f4f4f4;
+    }
+    h1 { text-align: center; }
+    input, textarea, button {
+      width: 100%;
+      margin-bottom: 1rem;
+      padding: 0.8rem;
+      font-size: 1rem;
+    }
+    button {
+      background-color: #0066ff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #004bcc;
+    }
+    .info {
+      font-size: 0.9rem;
+      color: gray;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-    <h1>Ambee Device Configuration</h1>
-    <div id="deviceInfo" class="container">
-        <h2>Device Information</h2>
-        <p>MAC Address: <span id="macAddress">Loading...</span></p>
-    </div>
+  <h1>OTA Update Trigger</h1>
 
-    <div class="container">
-        <h2>MQTT Configuration</h2>
-        <textarea id="configForm" rows="10" placeholder="Loading configuration..."></textarea>
-        <button onclick="saveConfig()">Save Configuration</button>
-    </div>
+  <label>Firmware Version</label>
+  <input type="text" id="version" placeholder="e.g. v1.0.4">
 
-    <div class="container">
-        <h2>Sensor Calibration</h2>
-        <textarea id="calibrationForm" rows="15" placeholder="Loading calibration data..."></textarea>
-        <button onclick="saveCalibration()">Save Calibration</button>
-    </div>
+  <label>Firmware URL</label>
+  <input type="text" id="url" placeholder="e.g. http://yourserver.com/firmware.bin">
 
-    <div id="status"></div>
+  <label>SHA256 Hash</label>
+  <textarea id="sha256" rows="3" placeholder="64-character SHA256 hash of firmware"></textarea>
 
-    <script>
-        let deviceIP = '192.168.4.1';
+  <button onclick="sendUpdate()">🚀 Trigger OTA Update</button>
 
-        function showStatus(message, isError = false) {
-            const status = document.getElementById('status');
-            status.textContent = message;
-            status.className = isError ? 'error' : 'success';
-            status.style.display = 'block';
-            setTimeout(() => status.style.display = 'none', 3000);
-        }
+  <p class="info">This will update <code>data.json</code> in your GitHub repo to notify the ESP32.</p>
 
-        async function fetchWithTimeout(url, options = {}, timeout = 5000) {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout);
-            
-            try {
-                const response = await fetch(url, { ...options, signal: controller.signal });
-                clearTimeout(timeoutId);
-                return response;
-            } catch (error) {
-                clearTimeout(timeoutId);
-                throw error;
-            }
-        }
+  <p id="status"></p>
 
-        async function loadDeviceInfo() {
-            try {
-                const response = await fetchWithTimeout(`http://${deviceIP}/api/device`);
-                const data = await response.json();
-                document.getElementById('macAddress').textContent = data.mac;
-            } catch (error) {
-                showStatus('Failed to load device info. Make sure you are connected to the device WiFi.', true);
-            }
-        }
+  <script>
+    async function sendUpdate() {
+      const version = document.getElementById("version").value.trim();
+      const url = document.getElementById("url").value.trim();
+      const sha256 = document.getElementById("sha256").value.trim();
+      const status = document.getElementById("status");
 
-        async function loadConfig() {
-            try {
-                const response = await fetchWithTimeout(`http://${deviceIP}/api/config`);
-                const config = await response.json();
-                document.getElementById('configForm').value = JSON.stringify(config, null, 2);
-            } catch (error) {
-                showStatus('Failed to load configuration', true);
-            }
-        }
+      if (!version || !url || sha256.length !== 64) {
+        status.innerText = "⚠️ Please enter valid version, URL, and SHA256 (64 characters)";
+        return;
+      }
 
-        async function loadCalibration() {
-            try {
-                const response = await fetchWithTimeout(`http://${deviceIP}/api/calibration`);
-                const calibration = await response.json();
-                document.getElementById('calibrationForm').value = JSON.stringify(calibration, null, 2);
-            } catch (error) {
-                showStatus('Failed to load calibration data', true);
-            }
-        }
+      const content = {
+        command: "UPDATE_FIRMWARE",
+        version,
+        url,
+        sha256
+      };
 
-        async function saveConfig() {
-            try {
-                const config = document.getElementById('configForm').value;
-                const response = await fetchWithTimeout(`http://${deviceIP}/api/config`, {
-                    method: 'POST',
-                    body: config,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (response.ok) {
-                    showStatus('Configuration saved successfully! Device will restart.');
-                } else {
-                    const error = await response.json();
-                    throw new Error(error.message || 'Failed to save configuration');
-                }
-            } catch (error) {
-                showStatus(error.message, true);
-            }
-        }
+      const jsonContent = JSON.stringify(content, null, 2);
 
-        async function saveCalibration() {
-            try {
-                const calibration = document.getElementById('calibrationForm').value;
-                const response = await fetchWithTimeout(`http://${deviceIP}/api/calibration`, {
-                    method: 'POST',
-                    body: calibration,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (response.ok) {
-                    showStatus('Calibration saved successfully!');
-                } else {
-                    const error = await response.json();
-                    throw new Error(error.message || 'Failed to save calibration');
-                }
-            } catch (error) {
-                showStatus(error.message, true);
-            }
-        }
+      status.innerText = "🔄 Updating data.json...";
 
-        // Load data when page loads
-        loadDeviceInfo();
-        loadConfig();
-        loadCalibration();
-    </script>
+      // GITHUB UPLOAD SECTION (manual!)
+      alert("⚠️ You cannot directly write to GitHub from a static page.\nCopy the following JSON and update data.json in GitHub manually:\n\n" + jsonContent);
+
+      status.innerText = "✅ JSON copied to clipboard or ready for manual paste.";
+    }
+  </script>
 </body>
 </html>
