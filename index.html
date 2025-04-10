@@ -1,85 +1,50 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
-  <title>ESP32 OTA Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESP32 OTA Trigger</title>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 2rem;
-      max-width: 600px;
-      margin: auto;
-      background-color: #f4f4f4;
-    }
-    h1 { text-align: center; }
-    input, textarea, button {
-      width: 100%;
-      margin-bottom: 1rem;
-      padding: 0.8rem;
-      font-size: 1rem;
-    }
-    button {
-      background-color: #0066ff;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #004bcc;
-    }
-    .info {
-      font-size: 0.9rem;
-      color: gray;
-      text-align: center;
-    }
+    body { font-family: Arial; background: #f5f5f5; padding: 40px; }
+    .container { background: white; padding: 30px; max-width: 500px; margin: auto; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    input, button { width: 100%; padding: 10px; margin: 10px 0; font-size: 1rem; }
+    .success { color: green; }
+    .error { color: red; }
   </style>
 </head>
 <body>
-  <h1>OTA Update Trigger</h1>
-
-  <label>Firmware Version</label>
-  <input type="text" id="version" placeholder="e.g. v1.0.4">
-
-  <label>Firmware URL</label>
-  <input type="text" id="url" placeholder="e.g. http://yourserver.com/firmware.bin">
-
-  <label>SHA256 Hash</label>
-  <textarea id="sha256" rows="3" placeholder="64-character SHA256 hash of firmware"></textarea>
-
-  <button onclick="sendUpdate()">🚀 Trigger OTA Update</button>
-
-  <p class="info">This will update <code>data.json</code> in your GitHub repo to notify the ESP32.</p>
-
-  <p id="status"></p>
+  <div class="container">
+    <h2>ESP32 OTA Trigger</h2>
+    <label>MAC Address:</label>
+    <input type="text" id="mac" placeholder="e.g. 08:D1:F9:75:9B:88">
+    
+    <label>Firmware Version:</label>
+    <input type="text" id="version" placeholder="e.g. 1.0.1">
+    
+    <button onclick="sendUpdate()">Trigger OTA</button>
+    <pre id="output"></pre>
+  </div>
 
   <script>
-    async function sendUpdate() {
+    function sendUpdate() {
+      const mac = document.getElementById("mac").value.trim();
       const version = document.getElementById("version").value.trim();
-      const url = document.getElementById("url").value.trim();
-      const sha256 = document.getElementById("sha256").value.trim();
-      const status = document.getElementById("status");
+      const output = document.getElementById("output");
 
-      if (!version || !url || sha256.length !== 64) {
-        status.innerText = "⚠️ Please enter valid version, URL, and SHA256 (64 characters)";
+      if (!mac || !version) {
+        output.textContent = "❌ Please enter both MAC and firmware version.";
+        output.className = "error";
         return;
       }
 
-      const content = {
-        command: "UPDATE_FIRMWARE",
-        version,
-        url,
-        sha256
-      };
+      const command = `UPDATE:${mac}:${version}`;
+      output.textContent = "Sending command: " + command;
+      output.className = "";
 
-      const jsonContent = JSON.stringify(content, null, 2);
+      // TODO: Replace with actual sending logic
+      // For now, just show the command
+      console.log("Send this to ESP32:", command);
 
-      status.innerText = "🔄 Updating data.json...";
-
-      // GITHUB UPLOAD SECTION (manual!)
-      alert("⚠️ You cannot directly write to GitHub from a static page.\nCopy the following JSON and update data.json in GitHub manually:\n\n" + jsonContent);
-
-      status.innerText = "✅ JSON copied to clipboard or ready for manual paste.";
+      // Example: send to a cloud API or MQTT or Serial relay
     }
   </script>
 </body>
